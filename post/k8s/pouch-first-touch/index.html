@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="zh-CN" lang="zh-CN">
+<head>
+  <link href="//gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.49" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Pouch First Touch &middot; Joshua&#39;s blog</title>
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hellolijj.github.io/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hellolijj.github.io/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hellolijj.github.io/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hellolijj.github.io/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  <link href="" rel="alternate" type="application/rss+xml" title="Joshua&#39;s blog" />
+
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hellolijj.github.io/"><h1>Joshua&#39;s blog</h1></a>
+      <p class="lead">
+       热爱生活，热爱开源技术 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hellolijj.github.io/">Home</a> </li>
+        <li><a href="/post/"> 技术博客 </a></li><li><a href="/life/"> 生活记录 </a></li>
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Pouch First Touch</h1>
+  <time datetime=2019-04-30T16:19:41&#43;0800 class="post-date">Tue, Apr 30, 2019</time>
+  
+
+<blockquote>
+<p>看了亮哥的《docker源码分析》热情澎湃，但是自己远没有这个能力。自从上次被面试后，一改之前的学习表面，学习特性的态度。今天对着 <a href="https://github.com/alibaba/pouch">pouch</a> 开源项目分析了，<code>pouch version</code> 命令的一整个执行流程。</p>
+</blockquote>
+
+<h2 id="pouch-的安装编译">pouch 的安装编译</h2>
+
+<p>对于开发者来说，能够对github上master代码进行安装编译是最基本的能力。
+按照官网的<a href="https://github.com/alibaba/pouch/blob/master/INSTALLATION.md">安装流程</a>来操作，一切都很顺畅。</p>
+
+<p>就是在 安装 go 项目时,使用 <code>go get github.com/alibaba/pouch</code> 就行。</p>
+
+<p>使用时，首先启动<code>pouchd</code>开启一个 pouch 的守护进程，然后通过 pouch 发送命令，pouchd 接受命令并执行解析，返回结果即可。</p>
+
+<p>[这里放一个pouch项目的架构图]</p>
+
+<h2 id="客户端">客户端</h2>
+
+<p>pouch 项目的入口在 main 函数里。</p>
+
+<pre><code>func main() {
+	if reexec.Init() {
+		return
+	}
+
+	setupFlags(rootCmd)
+
+	if err := rootCmd.Execute(); err != nil {
+		logrus.Error(err)
+		os.Exit(1)
+	}
+}
+</code></pre>
+
+<p>main 函数做一些参数的初始化、日志文件的初始化。最后 <code>pouch version</code> 命令落实到 <code>cli/version.go</code>文件里。</p>
+
+<p>cli/version.go文件，主要做一些对 <code>pouch version</code> 命令的解释说明，以及example样子，有些代码是自动生成的。也可以通过这些说明自动生成帮助文档，接口文档。</p>
+
+<pre><code>func (v *VersionCommand) runVersion() error {
+	ctx := context.Background()
+	apiClient := v.cli.Client()
+
+	result, err := apiClient.SystemVersion(ctx)
+	if err != nil {
+		return fmt.Errorf(&quot;failed to get system version: %v&quot;, err)
+	}
+
+	v.cli.Print(result)
+	return nil
+}
+</code></pre>
+
+<p><code>runVersion()</code> 函数主要是调用  <code>SystemVersion()</code>函数。 <code>SystemVersion()</code>函数是 pouch 项目的接口, 接口位于 <code>client/interface.go</code>文件中，这里定义了pouch 客户端的接口规范。</p>
+
+<p>接口的实现。</p>
+
+<p>真正对接口的实现，最终落实到 client 文件夹的文件中。例如 <code>SystemVersion</code> 接口的实现在 <code>client/system_version.go</code> 文件的 <code>SystemVersion()</code> 函数中。</p>
+
+<pre><code>func (client *APIClient) SystemVersion(ctx context.Context) (*types.SystemVersion, error) {
+	resp, err := client.get(ctx, &quot;/version&quot;, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	version := &amp;types.SystemVersion{}
+	err = decodeBody(version, resp.Body)
+	ensureCloseReader(resp)
+
+	return version, err
+}
+</code></pre>
+
+<p>这个命令实际上就是通过 get 方式请求 &ldquo;/version&rdquo; 接口。至此，客户端的发送请求就完成了。</p>
+
+<h2 id="服务端">服务端</h2>
+
+<p>服务端实际上就是 pouchd 进程。对应的入口文件（实际上也会启动文件）在 <code>deamon/daemon.go</code> 中。在启动 pouchd 的过程中也启动了一个 server。 对应的文件在 <code>api/server/server.go</code> 文件中。 那么对应的处理的handler的路由在 <code>api/server/router.go</code> 文件中。</p>
+
+<p>这时候，已经客户端发送的是 <code>/version</code> 接口，对应的处理逻辑如下：</p>
+
+<pre><code>func initRoute(s *Server) *mux.Router {
+	r := mux.NewRouter()
+
+	handlers := []*serverTypes.HandlerSpec{
+		// system
+		{Method: http.MethodGet, Path: &quot;/_ping&quot;, HandlerFunc: s.ping},
+		{Method: http.MethodGet, Path: &quot;/info&quot;, HandlerFunc: s.info},
+		{Method: http.MethodGet, Path: &quot;/version&quot;, HandlerFunc: s.version},
+		...
+	}
+
+	if s.APIPlugin != nil {
+		handlers = s.APIPlugin.UpdateHandler(handlers)
+	}
+
+	// register API
+	for _, h := range handlers {
+		if h != nil {
+			r.Path(versionMatcher + h.Path).Methods(h.Method).Handler(filter(h.HandlerFunc, s))
+			r.Path(h.Path).Methods(h.Method).Handler(filter(h.HandlerFunc, s))
+		}
+	}
+
+	if s.Config.Debug || s.Config.EnableProfiler {
+		profilerSetup(r)
+	}
+	return r
+}
+</code></pre>
+
+<p>然后根据对应api的接口可以找到对应的handle处理程序。</p>
+
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>
