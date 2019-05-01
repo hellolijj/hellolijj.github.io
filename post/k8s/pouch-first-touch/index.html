@@ -164,7 +164,28 @@
 }
 </code></pre>
 
-<p>然后根据对应api的接口可以找到对应的handle处理程序。</p>
+<p>然后根据对应api的接口可以找到对应的handle处理程序。返回 Version 结构体的Json给客户端。</p>
+
+<pre><code>func (mgr *SystemManager) Version() (types.SystemVersion, error) {
+	kernelVersion := unknownKernelVersion
+	if kv, err := kernel.GetKernelVersion(); err != nil {
+		logrus.Warnf(&quot;Could not get kernel version: %v&quot;, err)
+	} else {
+		kernelVersion = kv.String()
+	}
+
+	return types.SystemVersion{
+		APIVersion:    version.APIVersion,
+		Arch:          runtime.GOARCH,
+		BuildTime:     version.BuildTime,
+		GitCommit:     version.GitCommit,
+		GoVersion:     runtime.Version(),
+		KernelVersion: kernelVersion,
+		Os:            runtime.GOOS,
+		Version:       version.Version,
+	}, nil
+}
+</code></pre>
 
 </div>
 
