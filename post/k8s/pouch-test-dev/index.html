@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="zh-CN" lang="zh-CN">
+<head>
+  <link href="//gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.49" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Pouch Test Dev &middot; Joshua&#39;s blog</title>
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hellolijj.github.io/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hellolijj.github.io/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hellolijj.github.io/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hellolijj.github.io/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  <link href="" rel="alternate" type="application/rss+xml" title="Joshua&#39;s blog" />
+
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hellolijj.github.io/"><h1>Joshua&#39;s blog</h1></a>
+      <p class="lead">
+       热爱生活，热爱开源技术 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hellolijj.github.io/">Home</a> </li>
+        <li><a href="/post/"> 技术博客 </a></li><li><a href="/life/"> 生活记录 </a></li>
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Pouch Test Dev</h1>
+  <time datetime=2019-05-10T15:52:28&#43;0800 class="post-date">Fri, May 10, 2019</time>
+  
+
+<blockquote>
+<p>对于一个开源项目来说，了解它的测试流程，搭建测试环境是对理解代码有一定好处的。本文参照 pouch 测试文档，搭建测试环境，记录此过程中的一点思考。</p>
+</blockquote>
+
+<h2 id="pouch-测试开发">pouch 测试开发</h2>
+
+<blockquote>
+<p>按照 pouch 的文档。pouch 的测试环境要基于 linux 环境（centos 或者 ubutu）, mac 上搭建此环境是不行的。原因在于 pouch 还不支持 mac 版本。（mac 的 docker实现方式与linux不一样）。 但是在 mac 上搭建 moby 项目的开发环境还是可以运行的。</p>
+</blockquote>
+
+<p>参考官方的测试文档：<a href="http://pouchcontainer.io/#/pouch/docs/test/test.md">http://pouchcontainer.io/#/pouch/docs/test/test.md</a> 一步步搭建没有遇到什么问题。单元测试，通过 <code>make unit-test</code> 就可以完成单元测试。单个文件单个函数的测试可以借助 ide 完成。</p>
+
+<pre><code># pouchd -D --enable-lxcfs=true --lxcfs=/usr/bin/lxcfs &gt;/tmp/log 2&gt;&amp;1 &amp;
+# pouch pull registry.hub.docker.com/library/busybox:latest 
+</code></pre>
+
+<p>pouchd 的启动过程中。需要依赖 containerd、runc、lxcfs，安装的脚本在 hack/install 目录下。 使用的lxcfs前要进行文件挂载 <code>lxcfs /var/lib/lxcfs</code></p>
+
+<h2 id="如何进行集成测试">如何进行集成测试</h2>
+
+<p>除了单元测试外，也需要进行集成测试。集成测试的方法如下：</p>
+
+<pre><code>cd test
+# 测试某个文件
+go test -check.f PouchHelpSuite
+# 测试某个文件下的某个方法
+go test -check.f PouchHelpSuite.TestHelpWorks
+</code></pre>
+
+<p>这里参数来自于每个测试文件的 struct 结构</p>
+
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>
