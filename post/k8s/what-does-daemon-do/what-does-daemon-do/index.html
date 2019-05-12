@@ -57,6 +57,10 @@
 
 <p>pouch daemon 位于daemon这个包内。</p>
 
+<p>pouch daemon是pouch的守护进程，这里也可以看出，daemon 由crtd(containerd)、container、image、volume、network、server等部分组成。</p>
+
+<p>根据上篇文章分析，在main函数里构建了一个 main.go 运行了 <code>d := daemon.NewDaemon(cfg)</code> 返回 daemon 对象。在 传入进去的 <code>cfg</code> 是flag的一些配置参数。NewDaemon 位于 daemon/daemon.go#NewDaemon 中。</p>
+
 <pre><code class="language-golang">type Daemon struct {
 	config         *config.Config
 	containerStore *meta.Store
@@ -81,27 +85,24 @@
 	apiPlugin       hookplugins.APIPlugin
 	eventsService   *events.Events
 }
-</code></pre>
+```	
 
-<p>pouch daemon是pouch的守护进程，这里也可以看出，daemon 由crtd(containerd)、container、image、volume、network、server等部分组成。</p>
+## NewDaemon 函数
 
-<p>根据上篇文章分析，在main函数里构建了一个 main.go 运行了 <code>d := daemon.NewDaemon(cfg)</code> 返回 daemon 对象。在 传入进去的 <code>cfg</code> 是flag的一些配置参数。NewDaemon 位于 daemon/daemon.go#NewDaemon 中。</p>
+NewDaemon 函数传入是 config 参数（来自于flag命令行） 返回时 daemon 结构体。结构图字段参见上。
 
-<h2 id="newdaemon-函数">NewDaemon 函数</h2>
+第一步：构建containerStore对象。
 
-<p>NewDaemon 函数传入是 config 参数（来自于flag命令行） 返回时 daemon 结构体。结构图字段参见上。</p>
+containerStort 用于保存容器启动、终止（未删除）的信息。
 
-<p>第一步：构建containerStore对象。</p>
+![hello-world-contaner-store](../hello-world-container.png)
 
-<p>containerStort 用于保存容器启动、终止（未删除）的信息。</p>
+这里保存着容器的基本信息，包括hostname、host（记录本地域名解析）、json.log（保存容器的日志信息）、meta.json（保存容器的基本信息，pouch inspect 命令可以查看到）、resolv.conf（保存dns服务器地址）。当删除这个容器，这些信息也会跟着删除。
 
-<p><img src="../hello-world-container.png" alt="hello-world-contaner-store" /></p>
+containerStort的结构如下
 
-<p>这里保存着容器的基本信息，包括hostname、host（记录本地域名解析）、json.log（保存容器的日志信息）、meta.json（保存容器的基本信息，pouch inspect 命令可以查看到）、resolv.conf（保存dns服务器地址）。当删除这个容器，这些信息也会跟着删除。</p>
-
-<p>containerStort的结构如下</p>
-
-<pre><code class="language-golang">type Store struct {
+```golang
+type Store struct {
 	Config
 	trieLock *sync.Mutex // trieLock use to protect 'trie'.
 	trie     *patricia.Trie
