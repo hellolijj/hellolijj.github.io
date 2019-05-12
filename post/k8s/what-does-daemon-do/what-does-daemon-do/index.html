@@ -164,9 +164,32 @@ type Config struct {
 }
 </code></pre>
 
-<h2 id="run-daemon-函数">run daemon 函数</h2>
+<h2 id="loadplugin函数里">loadPlugin函数里</h2>
 
 <p>main函数里获取了daemon对象后，创建一个携程运行 daemon 的 run 函数。 函数位于 daemon/daemon.go#run。</p>
+
+<p>在 run daemon函数之前，运行 loadPlugin 函数。</p>
+
+<p>loadPlugin函数包含：</p>
+
+<ul>
+<li>daemonPlugin</li>
+<li>containerPlugin</li>
+<li>imagePlugin</li>
+<li>volumePlugin</li>
+<li>criPlugin</li>
+<li>apiPlugin</li>
+</ul>
+
+<p>虽然 pouch 还有没有实现这些插件，但是可供以后扩展。</p>
+
+<h2 id="daemon-run-函数">daemon run 函数</h2>
+
+<p>加载完成后，
+第一步： 初始化运行时
+&gt; 初始化运行时创建 runtimes 目录</p>
+
+<p>第二步: 初始化eventsService、imageMgr、systemMgr、volumeMgr、containerMgr、networkMgr 这些顺序不能改变。</p>
 
 </div>
 
