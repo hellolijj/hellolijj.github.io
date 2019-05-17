@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="zh-CN" lang="zh-CN">
+<head>
+  <link href="//gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.49" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Pouch Dev Note (1) &middot; Joshua&#39;s blog</title>
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hellolijj.github.io/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hellolijj.github.io/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hellolijj.github.io/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hellolijj.github.io/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  <link href="" rel="alternate" type="application/rss+xml" title="Joshua&#39;s blog" />
+
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hellolijj.github.io/"><h1>Joshua&#39;s blog</h1></a>
+      <p class="lead">
+       热爱生活，热爱开源技术 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hellolijj.github.io/">Home</a> </li>
+        <li><a href="/post/"> 技术博客 </a></li><li><a href="/life/"> 生活记录 </a></li>
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Pouch Dev Note (1)</h1>
+  <time datetime=2019-05-17T20:14:50&#43;0800 class="post-date">Fri, May 17, 2019</time>
+  
+
+<h2 id="pouch-开发笔记">Pouch 开发笔记</h2>
+
+<blockquote>
+<p>最近突然发现阿里巴巴推出了一个 <a href="https://developer.aliyun.com/summerofcode2019">SOC2019</a> 的项目，也就是阿里巴巴编程之夏。这是他们第一次搞，这是在向谷歌编程之夏（GSOC）学习。由于对这个感兴趣，就关注了一下。并提出了一个 <code>issue</code> <a href="https://github.com/alibaba/pouch/issues/2839">pouch support search in cli</a>。 随后又自己想开发这个特性，自己就开始看 pouch 源码，并动手写了。</p>
+
+<p>这里记录一下开发过程中的一些想法。</p>
+</blockquote>
+
+<h3 id="pouch-cli">pouch cli</h3>
+
+<p>开发遇到的第一个问题，就是怎么添加 search 命令的入门。这就要求了解 pouch cli 的写法。pouch 也引用了 cobra 的写法。</p>
+
+<p>1、入口文件</p>
+
+<p>pouch cli 的入口在 <code>cli/cli.go</code> 文件里。包括setflag操作，设置日志操作都是在这个文件里。这个文件</p>
+
+<pre><code>rootCmd: &amp;cobra.Command{
+	Use:   &quot;pouch&quot;,
+	Short: &quot;An efficient container engine&quot;,
+	Long:  pouchDescription,
+	// disable displaying auto generation tag in cli docs
+	DisableAutoGenTag: true,
+}
+</code></pre>
+
+<p>定义了一级命令、和对于这个命令的描述。</p>
+
+<p>2、二级命令文件</p>
+
+<p>这里的二级命令是我自己定义的。例如 <code>pouch info</code> 这里的 info 就是二级命令。例如，我希望增加一个 <code>pouch search</code> 的命令。那么我就创建一个 <code>cli/search.go</code>的文件。</p>
+
+<p>Init 函数里有关于这个命令的用法。
+RunE 是执行这个命令要运行的函数。
+Args 是对参数的要求。</p>
+
+<pre><code>func (s *SearchCommand) Init(c *Cli) {
+	s.cli = c
+
+	s.cmd = &amp;cobra.Command{
+		Use:   &quot;search [OPTIONS] TERM&quot;,
+		Short: &quot;Search the images from specific registry&quot;,
+		Long:  searchDescription,
+		Args:  cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return s.runSearch(args)
+		},
+		Example: searchExample(),
+	}
+	s.addFlags()
+}
+</code></pre>
+
+<p>例如: 执行 <code>pouch search nginx</code> 命令, 就会执行 runSearch() 函数。其中 addFlags() 函数是对 <code>pouch search nginx -r www.a.com</code> 里的 -r 参数进行解析。</p>
+
+<p>3、命令的具体实现——构造client端请求
+一般在 cli 目录下只是简单的对参数解析判断，调用 APIClient 的接口。真正在 cli 端做事情的是实现这些接口的函数。一般位于 client 目录下。
+本特性是调用 ImageSearch 接口。具体的实现在 <code>client/image_search.go</code> 文件里。</p>
+
+<p>因为pouch项目是采用c/s架构。一条命令一般由客户端发送一个请求。daemon 负责相应。因此 client 目录下的大多都是构造请求参数，然后发送请求的 daemom。 pouch search 构造请求代码如下：</p>
+
+<pre><code>var results []types.SearchResultItem
+
+q := url.Values{}
+q.Set(&quot;term&quot;, term)
+q.Set(&quot;registry&quot;, registry)
+
+headers := map[string][]string{}
+if encodedAuth != &quot;&quot; {
+	headers[&quot;X-Registry-Auth&quot;] = []string{encodedAuth}
+}
+
+resp, err := client.post(ctx, &quot;/images/search&quot;, q, nil, headers)
+
+if err != nil {
+	return nil, err
+}
+
+err = json.NewDecoder(resp.Body).Decode(&amp;results)
+return results, err
+</code></pre>
+
+<h3 id="pouch-api">Pouch API</h3>
+
+<p>pouch api 是 pouch-cli 与 pouch-daemon 之间通信的接口。 pouch api 代码位于 apis 目录下。</p>
+
+<p>1、api 文档维护。
+pouch api 的文档是由 <code>apis/swagger.yml</code> 文件维护。pouch 项目中的 <code>apis/types</code> 由此文档自动生成。还有docs/api/HTTP_API.md 也由这个文档自动生成
+&gt; moby 项目还可以根据 swagger.yml 产生 html 网址文档，也启动 pouch 能早日实现。</p>
+
+<p>2、</p>
+
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>
