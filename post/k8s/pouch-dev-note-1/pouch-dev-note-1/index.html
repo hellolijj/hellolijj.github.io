@@ -109,9 +109,11 @@ Args 是对参数的要求。</p>
 
 <p>例如: 执行 <code>pouch search nginx</code> 命令, 就会执行 runSearch() 函数。其中 addFlags() 函数是对 <code>pouch search nginx -r www.a.com</code> 里的 -r 参数进行解析。</p>
 
-<p>3、命令的具体实现——构造client端请求
-一般在 cli 目录下只是简单的对参数解析判断，调用 APIClient 的接口。真正在 cli 端做事情的是实现这些接口的函数。一般位于 client 目录下。
-本特性是调用 ImageSearch 接口。具体的实现在 <code>client/image_search.go</code> 文件里。</p>
+<p>3、命令的具体实现——构造client端请求</p>
+
+<p>一般在 cli 目录下只是简单的对参数解析判断，调用 APIClient 的接口。真正在 cli 端做事情的是实现这些接口的函数。一般位于 client 目录下。</p>
+
+<p>本特性是调用 ImageSearch 接口。具体的实现在 <code>client/image_search.go</code> 文件里。</p>
 
 <p>因为pouch项目是采用c/s架构。一条命令一般由客户端发送一个请求。daemon 负责相应。因此 client 目录下的大多都是构造请求参数，然后发送请求的 daemom。 pouch search 构造请求代码如下：</p>
 
@@ -141,10 +143,76 @@ return results, err
 <p>pouch api 是 pouch-cli 与 pouch-daemon 之间通信的接口。 pouch api 代码位于 apis 目录下。</p>
 
 <p>1、api 文档维护。
-pouch api 的文档是由 <code>apis/swagger.yml</code> 文件维护。pouch 项目中的 <code>apis/types</code> 由此文档自动生成。还有docs/api/HTTP_API.md 也由这个文档自动生成
-&gt; moby 项目还可以根据 swagger.yml 产生 html 网址文档，也启动 pouch 能早日实现。</p>
+pouch api 的文档是由 <code>apis/swagger.yml</code> 文件维护。pouch 项目中的 <code>apis/types</code> 由此文档自动生成。还有docs/api/HTTP_API.md 也由这个文档自动生成。</p>
 
-<p>2、</p>
+<blockquote>
+<p>moby 项目还可以根据 swagger.yml 产生 html 网址文档，也启动 pouch 能早日实现。</p>
+</blockquote>
+
+<p>2、api 路由</p>
+
+<p>前文 <a href="./what-happen-pouchd/what-happen-pouchd">what happen pouchd</a>我已经分析过，执行 <code>pouchd</code> 后，最后会启动一个 server 监听 客户端的请求。监听服务器文件在 <code>apis/server/server.go</code></p>
+
+<p>server 收到请求后，会分发给对应的 handler。 这一部分处理的逻辑位于 <code>apis/server/router.go</code>文件。</p>
+
+<h3 id="pouch-daemon">Pouch Daemon</h3>
+
+<p>在 router.go 里的 handler 处理函数，最终会跳转到 xxx_bridge.go 文件。例如：image search 就跳转到 <code>apis/server/image_bridge.go#searchImages</code> 文件。</p>
+
+<p>bridge 文件一般都是接受参数，对参数判断。然后调用 xxxMgr 接口。例如 image search 就是调用 ImageMgr 接口的 SearchImages 方法。</p>
+
+<p>xxxMgr 的实现位于 <code>daemon/mgr</code> 路径下。 这个文件夹里有所有对 pouch 对象的处理方法。例如 对于 pull image 操作。对应的处理文件是 <code>daemon/mgr/image.go#SearchImages</code>。</p>
+
+<p>对于某些比较复杂的操作。比喻 PullImage 操作。还会调用 mgr.client.FetchImage 方法。
+mgr.client 实际上 containerd 的client。</p>
+
+<h3 id="containerd-client">Containerd Client</h3>
+
+<p>pouch 对于底层容器、镜像的操作实际上是依赖于 containerd 的。安装 pouch 实际上也安装了（必须安装containd）而 containerd 由 依赖于 runc。（runV只有涉及到才要求安装）。</p>
+
+<p>pouch 对于 contaninerd 的操作之前创建一个 ctrd 的对象（这个步骤在 pouchd 启动时候创建）。ctrd 的实现位于 <code>ctrd/</code> 目录下。</p>
+
+<h3 id="pouch-命令流程">pouch 命令流程</h3>
+
+<p>简单总结以上过程可绘制以下流程图</p>
+
+<p><img src="../pouch_flow_progress.png" alt="pouch-flow-progress" /></p>
+
+<h2 id="pouch-测试">pouch 测试</h2>
+
+<p>对于一个开源项目，完整的测试体系是十分有必要的。在pouch项目中有 单元测试 和集成测试。相关测试方法可以参照 我之前写的文章 <a href="../../pouch-test-dev">pouch test dev</a></p>
+
+<h2 id="pouch-github">pouch github</h2>
+
+<p>上传github的过程有很多地方需要注意。</p>
+
+<p>1、git commit 需要签名</p>
+
+<p>由于 github 项目需要统计你的信息。因此 每次上传都要 <code>git commit -s -m &quot;some info&quot;</code></p>
+
+<p>2、code check</p>
+
+<p>不同的项目有不同的风格。go 代码风格不是有以下几点</p>
+
+<p>（1）、每次上传都要进行 golint</p>
+
+<p>这就要求你的开发环境需要有 golint。golint 是代码质量检查工具。它可以将代码中不规范的地方指引出来。</p>
+
+<blockquote>
+<p>问题：golint 可以检测单个文件 或者某目录下的所有文件。它无法递归检测。</p>
+</blockquote>
+
+<p>（2） 每次上传都要进行 gofmt</p>
+
+<p>gofmt 操作有时候</p>
+
+<p>gofmt –w program.go gofmt结构覆盖原来文件</p>
+
+<p>（3）每次上传都要进行 goimport</p>
+
+<p>import 包要求：第一部分使用系统包、第二部分使用本项目包、第三部分使用第三方包。两个部分之间使用空行隔开，不同包之间安装字母顺序排序。</p>
+
+<p>（4） todo 部分使用大写 TODO</p>
 
 </div>
 
