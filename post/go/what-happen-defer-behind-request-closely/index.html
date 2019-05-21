@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="zh-CN" lang="zh-CN">
+<head>
+  <link href="//gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.49" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>What Happen Defer Behind Request Closely &middot; Joshua&#39;s blog</title>
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hellolijj.github.io/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hellolijj.github.io/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hellolijj.github.io/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hellolijj.github.io/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  <link href="" rel="alternate" type="application/rss+xml" title="Joshua&#39;s blog" />
+
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hellolijj.github.io/"><h1>Joshua&#39;s blog</h1></a>
+      <p class="lead">
+       热爱生活，热爱开源技术 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hellolijj.github.io/">Home</a> </li>
+        <li><a href="/post/"> 技术博客 </a></li><li><a href="/life/"> 生活记录 </a></li>
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>What Happen Defer Behind Request Closely</h1>
+  <time datetime=2019-05-21T18:37:42&#43;0800 class="post-date">Tue, May 21, 2019</time>
+  <p>今天遇到了一个问题，前前后后调试了一个下午。特此记录一下。</p>
+
+<p>源代码如下：</p>
+
+<pre><code class="language-goland">resp, err := client.post(ctx, &quot;/containers/prune&quot;, q, nil, nil)
+defer resp.Body.Close()
+if err != nil {
+	return nil, err
+}
+</code></pre>
+
+<blockquote>
+<p>这段代码乍得一看，也没有什么问题，正常情况下（网络请求正常返回）也不会出现问题。
+但是一旦 服务器端关闭。客户端发送post请求失败，这时候立马 resp.BodyClose() 报地址错误。</p>
+</blockquote>
+
+<p>正确应该将 defer 函数放在 err 判断的后面</p>
+
+<pre><code class="language-goland">resp, err := client.post(ctx, &quot;/containers/prune&quot;, q, nil, nil)
+if err != nil {
+	return nil, err
+}
+defer resp.Body.Close()
+</code></pre>
+
+<p>特此谨记！</p>
+
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>
