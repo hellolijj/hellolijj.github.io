@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="zh-CN" lang="zh-CN">
+<head>
+  <link href="//gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.49" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Gpu Topolgy Scheduler Design &middot; Joshua&#39;s blog</title>
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hellolijj.github.io/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hellolijj.github.io/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hellolijj.github.io/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hellolijj.github.io/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  <link href="" rel="alternate" type="application/rss+xml" title="Joshua&#39;s blog" />
+
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hellolijj.github.io/"><h1>Joshua&#39;s blog</h1></a>
+      <p class="lead">
+       热爱生活，热爱开源技术 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hellolijj.github.io/">Home</a> </li>
+        <li><a href="/post/"> 技术博客 </a></li><li><a href="/life/"> 生活记录 </a></li>
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Gpu Topolgy Scheduler Design</h1>
+  <time datetime=2019-06-27T21:00:04&#43;0800 class="post-date">Thu, Jun 27, 2019</time>
+  
+
+<p>gsoc 设计文档更新版。</p>
+
+<h2 id="目标">目标</h2>
+
+<p>当一个机器学习任务使用到 n 块 gpu 卡时，可根据 gpu 之间的拓扑，选择亲和性强的 gpu 完成任务。</p>
+
+<h2 id="非目标">非目标</h2>
+
+<p>节点内部的 亲和性除了 gpu 与 gpu 之间的亲和性外，还有 gpu 与 cpu 之间的亲和性。gpu 与 cpu 的亲和性不在此次考虑范围内。</p>
+
+<h2 id="约定">约定</h2>
+
+<p>当只有一块gpu的时候，不考虑 gpu 拓扑结构。也就是说不存在 <code>map[gpu1][gpu1]</code> 这种情况</p>
+
+<h2 id="思路">思路</h2>
+
+<h3 id="1-device-上报-gpu-topology">1. device 上报 gpu topology</h3>
+
+<h4 id="1-1-通过-nvml-包获取-节点中-gpu-topology-信息">1.1 通过 nvml 包获取 节点中 gpu topology 信息</h4>
+
+<p>device-plugin 在初始化的时候，通过 nvml 包获取 节点中 gpu 的信息，包括 gpu topoloy。</p>
+
+<p>设计 gpu topology 的数据结构如下：</p>
+
+<pre><code>type gpuTopology map[uint]map[uint]gpuTopologyType
+type gpuTopologyDesc map[string]map[string]string
+
+// 例如：如下格式表示gpuTopology
+map[0][0] = 1
+// 例如：如下格式表示gpuTopologyDesc
+map[&quot;2a80bf1391b2&quot;][&quot;3a8af139cbd&quot;] = &quot;Host PCI bridge&quot;
+</code></pre>
+
+<h4 id="1-2-device-plugin-上报-gpu-topology-给-node">1.2 device-plugin 上报 gpu topology 给 node</h4>
+
+<p>使用 node annotation 字段表示 gpu tology</p>
+
+<p>如： GSOC_2a80bf1391b2_3a8af139cbd: Cross CPU socket</p>
+
+<blockquote>
+<p>注意 annotation 的 label key 不能超过 64 字符，因此使用 gpu 名称的最后一段（以“f”分割） 作为 gpu 简写</p>
+</blockquote>
+
+<h4 id="1-3-listandwatch-上报自定义资源字段">1.3 listAndWatch 上报自定义资源字段</h4>
+
+<p>device-plugin 在 listAndWatch 的过程 上传资源类型 &ldquo;aliyun.com/gpu-count&rdquo;</p>
+
+<h3 id="2-scheduler-extender-根据-gpu-topology-调度">2. scheduler extender 根据 gpu topology 调度</h3>
+
+<h4 id="2-1-scheduler-extender-的配置">2.1 scheduler extender 的配置</h4>
+
+<pre><code>{
+  &quot;kind&quot;: &quot;Policy&quot;,
+  &quot;apiVersion&quot;: &quot;v1&quot;,
+  &quot;extenders&quot;: [
+    {
+      &quot;urlPrefix&quot;: &quot;http://127.0.0.1:32766/gpushare-scheduler&quot;,
+      &quot;PrioritizeVerb&quot; : &quot;sortByGPUAffinity&quot;,
+      &quot;bindVerb&quot;:   &quot;bind&quot;,
+      &quot;enableHttps&quot;: false,
+      &quot;nodeCacheCapable&quot;: true,
+      &quot;managedResources&quot;: [
+        {
+          &quot;name&quot;: &quot;aliyun.com/gpu-count&quot;,
+          &quot;ignoredByScheduler&quot;: false
+        }
+      ],
+      &quot;ignorable&quot;: false
+    }
+  ]
+}
+</code></pre>
+
+<p>说明：</p>
+
+<ul>
+<li>scheduler extender 不需要 filter 过程，gpu topology 的 预选过程是通过，“节点中的gpu-count” 是否满足调节来预选。这个过程在默认调度器中完成。</li>
+<li>新增 PrioritizeVerb 过程。此过程计算每个节点上的 满足gpu数量条件的 gpu 亲和性打分（即，计算每个节点上gpu 亲和性最好的方案对应的分数）。</li>
+<li>bind 过程。在符合条件，且最高分数（经过预选、优选过程）的 node 节点上，选择最优 gpu 组合方案，写入到 annotion上，完成绑定，更新pod的annotation 字段。</li>
+</ul>
+
+<p>参考 <a href="https://github.com/kubernetes/community/blob/master/contributors/design-proposals/scheduling/scheduler_extender.md">scheduler extender</a> 的设计</p>
+
+<h4 id="2-2-scheduler-extender-打分方案">2.2 scheduler extender 打分方案</h4>
+
+<p>优选过程可以拆分为一下两个步骤</p>
+
+<ul>
+<li>选择最佳gpu组合设计</li>
+<li>计算最佳组合的分数设计</li>
+</ul>
+
+<h5 id="2-2-1-gpu-最佳亲和性选择">2.2.1 gpu 最佳亲和性选择</h5>
+
+<p>gpu 最佳亲和性方案如下：</p>
+
+<ul>
+<li>当 请求 aliyun.com/gpu-count 为 1 时，随机选择一个未经使用到gpu。</li>
+<li>当 请求 aliyun.com/gpu-count 大于等于 2 时，先选择一个路径最短的两个gpu, 然后通过图的最短生成树方案（改良过的 prim 算法）得出最佳 gpu 组合方案（device list）。</li>
+</ul>
+
+<p>伪代码如下：</p>
+
+<pre><code>// req == 1, 随机返回device id
+if req == 1 {
+	for:  device list 列表
+		if device 没有使用
+			选择该 device 
+			return
+}
+
+// 获取最短路径
+for gputopogy 二维数组
+	if gpu1 is used 
+		continue;
+	for gpu1 连接 的设备
+		if gpu 2 is used
+		    continue
+		if getToploge(gpu1, gpu2) &lt; min {
+			min = getToploge(gpu1, gpu2)
+			最短的两个gpu节点作为
+		}
+		    
+将选择的两个节点加入到 ids
+if req == 2 {
+	return
+}
+
+
+// 寻找接下来的点。
+for 遍历所有没有使用过，未经选择的节点
+	选择出到 ids 距离和最短到节点，加入到 ids
+
+如此循环直到找到满足请求的 gpu-count 个数为止。
+
+</code></pre>
+
+<blockquote>
+<p>此方案有个问题：当选择最短两个节点时，出现了两个距离相等的方案。默认选择后者，这时候可能在选择第三个device时，到另外一种方案的距离更短。</p>
+
+<p>例如：有[0,1,2,3,4]5个节点。发现，最短2个device方案有[0,1] 或者 [0,2]。在选择第三个方案的时候，发现 节点3，到[0,1] 的距离更短。而这个时候可能已经确定了[0,2]作为两个device最短方案。</p>
+</blockquote>
+
+<h4 id="2-2-2-计算最佳组合的分数设计">2.2.2 计算最佳组合的分数设计</h4>
+
+<p>每种gpu link 关系赋值如下表：</p>
+
+<table>
+<thead>
+<tr>
+<th>P2PLinkType</th>
+<th>P2PLinkTypeDesc</th>
+<th>mark</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>sdfP2PLinkCrossCPU</td>
+<td>Cross CPU socket</td>
+<td>1</td>
+</tr>
+
+<tr>
+<td>sdP2PLinkSameCPU</td>
+<td>Same CPU socket</td>
+<td>2</td>
+</tr>
+
+<tr>
+<td>P2PLinkHostBridge</td>
+<td>Host PCI bridge</td>
+<td>3</td>
+</tr>
+
+<tr>
+<td>P2PLinkMultiSwitch</td>
+<td>Multiple PCI switches</td>
+<td>4</td>
+</tr>
+
+<tr>
+<td>P2PLinkSingleSwitch</td>
+<td>Single PCI switch</td>
+<td>5</td>
+</tr>
+
+<tr>
+<td>P2PLinkSameBoard</td>
+<td>Same board</td>
+<td>6</td>
+</tr>
+</tbody>
+</table>
+
+<p>分数计算方式如下：</p>
+
+<pre><code>10 - 10 * sum(topology) / 6 * len(topology)
+</code></pre>
+
+<p>对所有的gpu连接路径求和 再作归一化处理，再成以最大值 10， 再被10 减去。</p>
+
+<p>例如：有选择了4个device， 它们之间的拓扑关系是：1，1，1，2，3，3</p>
+
+<pre><code>计算结果为：10*[1-(1+1+1+2+3+3)/6*6]
+</code></pre>
+
+<h3 id="2-3-scheduler-bind-方案">2.3 scheduler bind 方案</h3>
+
+<p>bind 的过程 将 最佳gpu组合方案，写入到 pod 的annotation 里。 同时记录分配时间ALIYUN_COM_GPU_ASSUME_TIME、是否实际分配到节点 ALIYUN_COM_GPU_ASSIGNED。</p>
+
+<p>例如：</p>
+
+<pre><code>ALIYUN_COM_GPU_ASSIGNED: false
+ALIYUN_COM_GPU_ASSUME_TIME: 1561717704
+ALIYUN_COM_GPU_ID_0: 3a8af139cbd
+ALIYUN_COM_GPU_ID_2: 2bd8a1332c4
+ALIYUN_COM_GPU_ID_3: 9cbd3a8af13
+</code></pre>
+
+<p>同时更新 pod 的annotion， 在 device 上记录运行的 pod 信息。</p>
+
+<h2 id="3-device-plugin-allocate-设计">3. device plugin allocate 设计</h2>
+
+<p>allocate 获取分配的device 列表后，穿入环境变量 NVIDIA_VISIBLE_DEVICES 到nvidia-docker容器里，容器的任务会根据这个变量将任务运行在指定的GPU里。</p>
+
+<p>同时也会更新 pod annotion 字段信息</p>
+
+<pre><code>ALIYUN_COM_GPU_ASSIGNED: true
+ALIYUN_COM_GPU_ASSUME_TIME: 1561718702
+</code></pre>
+
+<h2 id="流程">流程</h2>
+
+<p>todo</p>
+
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>
