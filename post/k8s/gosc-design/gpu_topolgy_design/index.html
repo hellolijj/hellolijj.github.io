@@ -73,7 +73,106 @@
 
 <h3 id="1-device-上报-gpu-topology">1. device 上报 gpu topology</h3>
 
-<h4 id="1-1-通过-nvml-包获取-节点中-gpu-topology-信息">1.1 通过 nvml 包获取 节点中 gpu topology 信息</h4>
+<h4 id="1-1-nvml-获取-gpu-topology-底层信息汇总">1.1 nvml 获取 gpu topology 底层信息汇总</h4>
+
+<p>在 linux 机器中，可通过  <code>nvidia-smi topo -m</code> 获取机器的 gpu 拓扑信息。</p>
+
+<p><img src="../gpu_topology_on_machine.png" alt="gpu topology on machine" /></p>
+
+<p>缩写的对应关系如下</p>
+
+<table>
+<thead>
+<tr>
+<th>P2PLinkType</th>
+<th>P2PLinkTypeDesc</th>
+<th>缩写</th>
+<th>路径权值</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>sdfP2PLinkCrossCPU</td>
+<td>Cross CPU socket</td>
+<td>SYS</td>
+<td>1</td>
+</tr>
+
+<tr>
+<td>sdP2PLinkSameCPU</td>
+<td>Same CPU socket</td>
+<td>NODE</td>
+<td>2</td>
+</tr>
+
+<tr>
+<td>P2PLinkHostBridge</td>
+<td>Host PCI bridge</td>
+<td>PHB</td>
+<td>3</td>
+</tr>
+
+<tr>
+<td>P2PLinkMultiSwitch</td>
+<td>Multiple PCI switches</td>
+<td>PXB</td>
+<td>4</td>
+</tr>
+
+<tr>
+<td>P2PLinkSingleSwitch</td>
+<td>Single PCI switch</td>
+<td>PIX</td>
+<td>5</td>
+</tr>
+
+<tr>
+<td>P2PLinkSameBoard</td>
+<td>Same board</td>
+<td>PSB</td>
+<td>6</td>
+</tr>
+
+<tr>
+<td>SingleNVLINKLink</td>
+<td></td>
+<td>NV1</td>
+<td></td>
+</tr>
+
+<tr>
+<td>TwoNVLINKLinks</td>
+<td></td>
+<td>NV2</td>
+<td></td>
+</tr>
+
+<tr>
+<td>ThreeNVLINKLinks</td>
+<td></td>
+<td>NV3</td>
+<td></td>
+</tr>
+
+<tr>
+<td>FourNVLINKLinks</td>
+<td></td>
+<td>NV4</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+
+<p>参考文档：</p>
+
+<p><a href="https://github.com/NVIDIA/k8s-device-plugin/blob/master/vendor/github.com/NVIDIA/gpu-monitoring-tools/bindings/go/nvml/nvml.go#L101">k8s-device-plugin nvidia包</a></p>
+
+<p><a href="https://github.com/NVIDIA/gpu-monitoring-tools/blob/master/bindings/go/dcgm/topology.go#L17">gpu-monitoring-tools</a></p>
+
+<p><a href="https://yq.aliyun.com/articles/599183">浅析GPU通信技术（中）-NVLink</a></p>
+
+<h4 id="1-2-通过-nvml-包获取-节点中-gpu-topology-信息">1.2 通过 nvml 包获取 节点中 gpu topology 信息</h4>
 
 <p>device-plugin 在初始化的时候，通过 nvml 包获取 节点中 gpu 的信息，包括 gpu topoloy。</p>
 
@@ -88,17 +187,20 @@ map[0][0] = 1
 map[&quot;2a80bf1391b2&quot;][&quot;3a8af139cbd&quot;] = &quot;Host PCI bridge&quot;
 </code></pre>
 
-<h4 id="1-2-device-plugin-上报-gpu-topology-给-node">1.2 device-plugin 上报 gpu topology 给 node</h4>
+<h4 id="1-3-device-plugin-上报-gpu-topology-给-node">1.3 device-plugin 上报 gpu topology 给 node</h4>
 
 <p>使用 node annotation 字段表示 gpu tology</p>
 
-<p>如： GSOC_2a80bf1391b2_3a8af139cbd: Cross CPU socket</p>
+<p>如： GSOC_ID_2a80bf1391b2_3a8af139cbd: Cross CPU socket</p>
 
 <blockquote>
 <p>注意 annotation 的 label key 不能超过 64 字符，因此使用 gpu 名称的最后一段（以“f”分割） 作为 gpu 简写</p>
+
+<p>疑问： GSOC_ID_DESC_2a80bf1391b2_3a8af139cbd: Cross CPU socket 的格式更有助与格式的调试。
+GSOC_ID_0_1: 2有助于程序内部的运算，相互转化。因此是否可以将两种类型信息都传上去？</p>
 </blockquote>
 
-<h4 id="1-3-listandwatch-上报自定义资源字段">1.3 listAndWatch 上报自定义资源字段</h4>
+<h4 id="1-4-listandwatch-上报自定义资源字段">1.4 listAndWatch 上报自定义资源字段</h4>
 
 <p>device-plugin 在 listAndWatch 的过程 上传资源类型 &ldquo;aliyun.com/gpu-count&rdquo;</p>
 
@@ -289,7 +391,9 @@ ALIYUN_COM_GPU_ASSUME_TIME: 1561718702
 
 <h2 id="流程">流程</h2>
 
-<p>todo</p>
+<p>根据以上思路，可作下图简单描述整个流程</p>
+
+<p><img src="../gpu_topology_on_k8s.png" alt="gpu topology on k8s" /></p>
 
 </div>
 
