@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="zh-CN" lang="zh-CN">
+<head>
+  <link href="//gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.49" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Images Proxy Service &middot; Joshua&#39;s blog</title>
+
+  
+  <link type="text/css" rel="stylesheet" href="https://hellolijj.github.io/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://hellolijj.github.io/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://hellolijj.github.io/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://hellolijj.github.io/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  <link href="" rel="alternate" type="application/rss+xml" title="Joshua&#39;s blog" />
+
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://hellolijj.github.io/"><h1>Joshua&#39;s blog</h1></a>
+      <p class="lead">
+       热爱生活，热爱开源技术 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://hellolijj.github.io/">Home</a> </li>
+        <li><a href="/post/"> 技术博客 </a></li><li><a href="/life/"> 生活记录 </a></li>
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Images Proxy Service</h1>
+  <time datetime=2019-10-14T17:38:21&#43;0800 class="post-date">Mon, Oct 14, 2019</time>
+  
+
+<h1 id="镜像代理服务">镜像代理服务</h1>
+
+<h2 id="问题">问题</h2>
+
+<p>很多情况下，都会遇到一些 gcr.io 、 k8s.gcr.io 镜像无法下载的问题。这是针对国内用户的。</p>
+
+<h2 id="解决方法">解决方法</h2>
+
+<ul>
+<li><p>使用 github dockerfile 构建镜像的方式可以解决</p></li>
+
+<li><p>设置 docker proxy 代理</p></li>
+
+<li><p>寻找镜像代理服务</p></li>
+
+<li><p>通过 google云 终端的 docker pull 然后再 docker push 到阿里云的镜像仓库。然后再去使用阿里云的镜像仓库。</p></li>
+</ul>
+
+<h2 id="镜像代理服务-1">镜像代理服务</h2>
+
+<p>Azure 中国提供了 <code>gcr.io</code> <code>k8s.gcr.io</code> 镜像代理服务</p>
+
+<p>例如：期望下载 <code>gcr.io/google_containers/addon-resizer:1.8.4</code> 的镜像。</p>
+
+<pre><code class="language-bash">docker pull gcr.azk8s.cn/google_containers/addon-resizer:1.8.4
+</code></pre>
+
+<p>通过执行以上命令，然后 docker tag 修改镜像名称可以解决。</p>
+
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>
